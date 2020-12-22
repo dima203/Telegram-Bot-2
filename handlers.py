@@ -26,14 +26,14 @@ async def start(message: types.Message):
 
     if user_id not in users_db.get_ids('users'):
         if user_id in ADMIN_IDS:
-            users_db.add_record('users', user_id, message.from_user.username, 'admin')
+            users_db.add_record('users', user_id, message.from_user.username, 'admin', 100)
 
         else:
             if message.from_user.username:
-                users_db.add_record('users', user_id, message.from_user.username, 'user')
+                users_db.add_record('users', user_id, message.from_user.username, 'user', 1)
 
             else:
-                users_db.add_record('users', user_id, f'User_{user_id}', 'user')
+                users_db.add_record('users', user_id, f'User_{user_id}', 'user', 1)
 
         await bot.send_message(user_id, 'Стартуем', reply_markup=keyboard)
 
@@ -90,7 +90,7 @@ async def cancel_handler(message: types.Message, state: FSMContext):
         await state.finish()
 
     elif current_state == 'Message:question':
-        keyboard.row('Сообщения')
+        keyboard.row('Сообщения', 'Пользователь')
         keyboard.row('Отмена')
         await Message.admin.set()
 
@@ -107,6 +107,25 @@ async def cancel_handler(message: types.Message, state: FSMContext):
         keyboard.row('Ответить', 'Удалить')
         keyboard.row('Отмена')
         await Message.answer.set()
+
+    elif current_state == 'Message:user':
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.row('Сообщения', 'Пользователь')
+        keyboard.row('Отмена')
+        await Message.admin.set()
+
+    elif current_state == 'Message:answer_user':
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.row('Сообщения', 'Пользователь')
+        keyboard.row('Отмена')
+        await Message.admin.set()
+
+    elif current_state == 'Message:message_user':
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.row('Повысить', 'Понизить')
+        keyboard.row('Написать сообщение')
+        keyboard.row('Отмена')
+        await Message.answer_user.set()
 
     await message.reply('ОК', reply_markup=keyboard)
 
@@ -125,6 +144,15 @@ async def mess(message: types.Message, state: FSMContext):
         data['lesson'] = lessons_db.get_record_by_id('lessons', lesson_id)
 
         lesson = data['lesson']
+
+    if lesson['level'] > users_db.get_record_by_id('users', message.chat.id)['level']:
+        await bot.send_message(message.chat.id, 'У вас слишком низкий уровень. Чтобы получить уровень выше,'
+                                                ' Вы должны пройти тест в предыдущем уроке, если вы его прошли, но еще '
+                                                'не получили уровень, обратитесь к преподавателю.\n'
+                                                f'Ваш уровень: '
+                                                f'{users_db.get_record_by_id("users", message.chat.id)["level"]}\n'
+                                                f'Требуется уровень: {lesson["level"]}')
+        return
 
     await bot.send_message(message.chat.id, f'Урок №{lesson_id}:\n\nТема: {lesson["theme"]} \n\n{lesson["text"]}')
     await bot.send_message(message.chat.id, 'https://wombat.org.ua/AByteOfPython/AByteofPythonRussian-2.02.pdf')
@@ -178,7 +206,7 @@ async def process_name(message: types.Message, state: FSMContext):
 async def mess(message: types.Message):
     await Message.admin.set()
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('Сообщения')
+    keyboard.row('Сообщения', 'Пользователь')
     keyboard.row('Отмена')
     await bot.send_message(message.chat.id, 'Добро пожаловать', reply_markup=keyboard)
 
@@ -196,6 +224,11 @@ async def mess(message: types.Message, state: FSMContext):
             keyboard.row('Отмена')
             await Message.question.set()
             await bot.send_message(message.chat.id, 'Выберите сообщение', reply_markup=keyboard)
+        elif message.text.lower() == 'пользователь':
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.row('Отмена')
+            await Message.user.set()
+            await bot.send_message(message.chat.id, 'Введите id пользователя', reply_markup=keyboard)
 
 
 @dispatcher.message_handler(state=Message.question)
@@ -224,6 +257,23 @@ async def mess(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Что делать будем?', reply_markup=keyboard)
 
 
+@dispatcher.message_handler(state=Message.user)
+async def mess(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['user_id'] = int(message.text)
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.row('Повысить', 'Понизить')
+        keyboard.row('Написать сообщение')
+        keyboard.row('Отмена')
+        user = users_db.get_record_by_id('users', data['user_id'])
+        text = f'id: {user["id"]}\n' \
+               f'username: {user["user_name"]}\n' \
+               f'level: {user["level"]}\n' \
+               f'post: {user["post"]}'
+        await Message.answer_user.set()
+        await bot.send_message(message.chat.id, text, reply_markup=keyboard)
+
+
 @dispatcher.message_handler(state=Message.answer)
 async def mess(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
@@ -244,6 +294,32 @@ async def mess(message: types.Message, state: FSMContext):
             keyboard.row('Отмена')
             await Message.question.set()
             await bot.send_message(message.chat.id, 'Сообщение удалено', reply_markup=keyboard)
+
+
+@dispatcher.message_handler(state=Message.answer_user)
+async def mess(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        if message.text.lower() == 'повысить':
+            user_id = data['user_id']
+            users_db.update_column('users', user_id, 'level', users_db.get_record_by_id('users', user_id)['level'] + 1)
+            await bot.send_message(message.chat.id, f'Уровень повышен '
+                                                    f'({users_db.get_record_by_id("users", user_id)["level"]})')
+            await bot.send_message(data['user_id'], f'Ваш уровень повышен '
+                                                    f'({users_db.get_record_by_id("users", user_id)["level"]})')
+
+        elif message.text.lower() == 'понизить':
+            user_id = data['user_id']
+            users_db.update_column('users', user_id, 'level', users_db.get_record_by_id("users", user_id)['level'] - 1)
+            await bot.send_message(message.chat.id, f'Уровень понижен '
+                                                    f'({users_db.get_record_by_id("users", user_id)["level"]})')
+            await bot.send_message(data['user_id'], f'Ваш уровень понижен '
+                                                    f'({users_db.get_record_by_id("users", user_id)["level"]})')
+
+        elif message.text.lower() == 'написать сообщение':
+            await Message.message_user.set()
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add('Отмена')
+            await bot.send_message(message.chat.id, 'Введи своё сообщение:', reply_markup=keyboard)
 
 
 @dispatcher.message_handler(state=Message.message)
@@ -270,6 +346,21 @@ async def process_name(message: types.Message, state: FSMContext):
     keyboard.row('Отмена')
     await bot.send_message(message.chat.id, 'Сообщение отправлено', reply_markup=keyboard)
     await Message.question.set()
+
+
+@dispatcher.message_handler(state=Message.message_user)
+async def process_name(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        user_id = data['user_id']
+        await bot.send_message(user_id, f'Вам написал админ:\n'
+                               f'{message.text}')
+
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.row('Повысить', 'Понизить')
+    keyboard.row('Написать сообщение')
+    keyboard.row('Отмена')
+    await bot.send_message(message.chat.id, 'Сообщение отправлено', reply_markup=keyboard)
+    await Message.answer_user.set()
 
 
 @dispatcher.message_handler(content_types=['text'])

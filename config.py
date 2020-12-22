@@ -25,8 +25,11 @@ class Lessons(StatesGroup):
 class Message(StatesGroup):
     admin = State()
     question = State()
+    user = State()
     answer = State()
+    answer_user = State()
     message = State()
+    message_user = State()
 
 
 for i in users_db.get_ids('users'):

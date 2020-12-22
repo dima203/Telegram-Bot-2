@@ -31,6 +31,11 @@ class DataBase:
             user[column_names[column_number]] = result[column_number]
         return user
 
+    def update_column(self, table_name: str, record_id: int, column_name: str, new_value):
+        command = f'UPDATE {table_name} SET {column_name} = {new_value} WHERE id = {record_id}'
+        self.cursor.execute(command)
+        self.connect.commit()
+
     def get_ids(self, table_name: str) -> list:
         all_ids = []
         self.cursor.execute(f'SELECT id FROM {table_name}')
