@@ -6,26 +6,34 @@ class DataBase:
         self.path = path
         self.connect = sqlite3.connect(self.path)
         self.cursor = self.connect.cursor()
-        print('database connected')
+        print(f'database {path} connected')
 
-    def add_user(self, user_id: int, user_name: str, post: str):
-        user = [(user_id, user_name, post)]
-        self.cursor.executemany('INSERT INTO users VALUES(?, ?, ?)', user)
+    def add_record(self, table_name: str, *args):
+        command = f'INSERT INTO {table_name} VALUES ('
+
+        for i in range(len(args)):
+            command += '?,'
+        command = command[:-1] + ')'
+
+        self.cursor.executemany(command, [args])
         self.connect.commit()
 
-    def delete_user_by_id(self, user_id: int):
-        self.cursor.execute(f"DELETE FROM users WHERE user_id = {user_id}")
+    def delete_record_by_id(self, table_name: str, record_id: int):
+        self.cursor.execute(f"DELETE FROM {table_name} WHERE id = {record_id}")
         self.connect.commit()
 
-    def get_user_by_id(self, user_id: int) -> dict:
-        self.cursor.execute(f"SELECT * FROM users WHERE user_id LIKE {user_id}")
+    def get_record_by_id(self, table_name: str, record_id: int) -> dict:
+        self.cursor.execute(f"SELECT * FROM {table_name} WHERE id LIKE {record_id}")
+        column_names = [description[0] for description in self.cursor.description]
         result = self.cursor.fetchall()[0]
-        user = {'user_id': result[0], 'user_name': result[1], 'post': result[2]}
+        user = {}
+        for column_number in range(len(column_names)):
+            user[column_names[column_number]] = result[column_number]
         return user
 
-    def get_ids(self):
+    def get_ids(self, table_name: str) -> list:
         all_ids = []
-        self.cursor.execute('SELECT user_id FROM users')
-        for user_id in self.cursor.fetchall():
-            all_ids.append(user_id[0])
+        self.cursor.execute(f'SELECT id FROM {table_name}')
+        for record_id in self.cursor.fetchall():
+            all_ids.append(record_id[0])
         return all_ids

@@ -1,4 +1,5 @@
 from data_base import DataBase
+from question_base import QuestionBase
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -10,12 +11,23 @@ storage = MemoryStorage()
 dispatcher = Dispatcher(bot, storage=storage)
 print('bot ready')
 
-data_base = DataBase('users.db')
+users_db = DataBase('users.db')
+lessons_db = DataBase('lessons.db')
+questions_base = QuestionBase('question_base.data')
 
 
-class Form(StatesGroup):
+class Lessons(StatesGroup):
+    lesson = State()
+    answer = State()
     message = State()
 
 
-for i in data_base.get_ids():
-    print(data_base.get_user_by_id(i))
+class Message(StatesGroup):
+    admin = State()
+    question = State()
+    answer = State()
+    message = State()
+
+
+for i in users_db.get_ids('users'):
+    print(users_db.get_record_by_id('users', i))
