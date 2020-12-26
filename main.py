@@ -8,7 +8,8 @@ import secret
 for user_id in users_db.get_ids('users'):
     keyboard = handlers.types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row('Уроки', 'Помощь')
-    keyboard.row('Комната админов')
+    if user_id in secret.ADMIN_IDS:
+        keyboard.row('Комната админов')
 
     response = requests.post(
         url='https://api.telegram.org/bot{0}/{1}'.format(secret.TOKEN, 'sendMessage'),
