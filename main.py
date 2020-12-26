@@ -1,19 +1,15 @@
 from aiogram import executor
-from config import dispatcher, users_db
+from config import bot, dispatcher, users_db
+import keyboards
+from secret import ADMIN_IDS
 import handlers
-import requests
-import secret
 
 
-for user_id in users_db.get_ids('users'):
-    keyboard = handlers.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('Уроки', 'Помощь')
-    if user_id in secret.ADMIN_IDS:
-        keyboard.row('Комната админов')
+async def start(bot_dispatcher):
+    for user_id in users_db.get_ids('users'):
+        if user_id in ADMIN_IDS:
+            await bot.send_message(user_id, 'Бот запущен', reply_markup=keyboards.main_admin)
+        else:
+            await bot.send_message(user_id, 'Бот запущен', reply_markup=keyboards.main_user)
 
-    response = requests.post(
-        url='https://api.telegram.org/bot{0}/{1}'.format(secret.TOKEN, 'sendMessage'),
-        data={'chat_id': user_id, 'text': 'Бот запущен', 'reply_markup': keyboard.as_json()}
-    ).json()
-
-executor.start_polling(dispatcher, skip_updates=True)
+executor.start_polling(dispatcher, skip_updates=True, on_startup=start)

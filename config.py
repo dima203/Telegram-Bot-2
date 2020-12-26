@@ -19,6 +19,7 @@ help_questions_base = HelpQuestionBase('help_questions_base.data')
 
 
 class Lessons(StatesGroup):
+    group = State()
     lesson = State()
     answer = State()
     message = State()
@@ -41,6 +42,10 @@ class Help(StatesGroup):
     create_answer = State()
     create_question = State()
     create_question_text = State()
+
+
+class Profile(StatesGroup):
+    change_name = State()
 
 
 for i in users_db.get_ids('users'):

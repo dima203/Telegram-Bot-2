@@ -1,10 +1,12 @@
 from aiogram import types
-from config import bot, dispatcher, users_db, lessons_db, questions_base, help_questions_base, Lessons, Message, Help
+from config import (bot, dispatcher, users_db, lessons_db,
+                    questions_base, help_questions_base,
+                    Lessons, Message, Help, Profile)
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from secret import ADMIN_IDS
 import keyboards
-from callback_datas import answers_callback, question_callback
+from callback_datas import answers_callback, question_callback, change_name_callback
 
 
 @dispatcher.message_handler(commands='set_commands', state='*')
@@ -53,91 +55,119 @@ async def start_write(message: types.Message):
 @dispatcher.message_handler(state='*', commands='cancel')
 @dispatcher.message_handler(Text(equals='отмена', ignore_case=True), state='*')
 async def cancel_handler(message: types.Message, state: FSMContext):
-    current_state = await state.get_state()
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    async with state.proxy() as data:
+        current_state = await state.get_state()
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
-    if current_state is None:
-        return
+        if current_state is None:
+            return
 
-    elif current_state == 'Lessons:lesson':
-        if message.chat.id in ADMIN_IDS:
-            keyboard = keyboards.main_admin
-        else:
-            keyboard = keyboards.main_user
-        await state.finish()
+        elif current_state == 'Lessons:group':
+            if message.chat.id in ADMIN_IDS:
+                keyboard = keyboards.main_admin
+            else:
+                keyboard = keyboards.main_user
+            await state.finish()
 
-    elif current_state == 'Lessons:answer':
-        keyboard = keyboards.lessons_main()
-        await Lessons.lesson.set()
+        elif current_state == 'Lessons:lesson':
+            keyboard = keyboards.lessons_groups
+            await Lessons.group.set()
 
-    elif current_state == 'Lessons:message':
-        keyboard = keyboards.lessons_lesson
-        await Lessons.answer.set()
+        elif current_state == 'Lessons:answer':
+            keyboard = keyboards.lessons_main(data['group'])
+            await Lessons.lesson.set()
 
-    elif current_state == 'Message:admin':
-        if message.chat.id in ADMIN_IDS:
-            keyboard = keyboards.main_admin
-        else:
-            keyboard = keyboards.main_user
-        await state.finish()
+        elif current_state == 'Lessons:message':
+            keyboard = keyboards.lessons_lesson
+            await Lessons.answer.set()
 
-    elif current_state == 'Message:question':
-        keyboard = keyboards.adminsroom_main
-        await Message.admin.set()
+        elif current_state == 'Message:admin':
+            if message.chat.id in ADMIN_IDS:
+                keyboard = keyboards.main_admin
+            else:
+                keyboard = keyboards.main_user
+            await state.finish()
 
-    elif current_state == 'Message:answer':
-        keyboard = keyboards.adminsroom_message_chose()
-        await Message.question.set()
+        elif current_state == 'Message:question':
+            keyboard = keyboards.adminsroom_main
+            await Message.admin.set()
 
-    elif current_state == 'Message:message':
-        keyboard = keyboards.adminsroom_message_main
-        await Message.answer.set()
+        elif current_state == 'Message:answer':
+            keyboard = keyboards.adminsroom_message_chose()
+            await Message.question.set()
 
-    elif current_state == 'Message:user':
-        keyboard = keyboards.adminsroom_main
-        await Message.admin.set()
+        elif current_state == 'Message:message':
+            keyboard = keyboards.adminsroom_message_main
+            await Message.answer.set()
 
-    elif current_state == 'Message:answer_user':
-        keyboard = keyboards.adminsroom_main
-        await Message.admin.set()
+        elif current_state == 'Message:user':
+            keyboard = keyboards.adminsroom_main
+            await Message.admin.set()
 
-    elif current_state == 'Message:message_user':
-        keyboard = keyboards.adminsroom_user_main
-        await Message.answer_user.set()
+        elif current_state == 'Message:answer_user':
+            keyboard = keyboards.adminsroom_main
+            await Message.admin.set()
 
-    elif current_state == 'Help:main':
-        if message.chat.id in ADMIN_IDS:
-            keyboard = keyboards.main_admin
-        else:
-            keyboard = keyboards.main_user
-        await state.finish()
+        elif current_state == 'Message:message_user':
+            keyboard = keyboards.adminsroom_user_main
+            await Message.answer_user.set()
 
-    elif current_state == 'Help:questions':
-        keyboard = keyboards.help_main
-        await Help.main.set()
+        elif current_state == 'Help:main':
+            if message.chat.id in ADMIN_IDS:
+                keyboard = keyboards.main_admin
+            else:
+                keyboard = keyboards.main_user
+            await state.finish()
 
-    elif current_state == 'Help:create_answer':
-        keyboard = keyboards.help_questions()
-        await Help.questions.set()
+        elif current_state == 'Help:questions':
+            keyboard = keyboards.help_main
+            await Help.main.set()
 
-    elif current_state == 'Help:create_question':
-        keyboard = keyboards.help_questions()
-        await Help.main.set()
+        elif current_state == 'Help:create_answer':
+            keyboard = keyboards.help_questions()
+            await Help.questions.set()
 
-    elif current_state == 'Help:create_question_text':
-        keyboard = keyboards.help_questions()
-        await Help.main.set()
+        elif current_state == 'Help:create_question':
+            keyboard = keyboards.help_questions()
+            await Help.main.set()
 
-    await message.reply('ОК', reply_markup=keyboard)
+        elif current_state == 'Help:create_question_text':
+            keyboard = keyboards.help_questions()
+            await Help.main.set()
+
+        elif current_state == 'Profile:change_name':
+            if message.chat.id in ADMIN_IDS:
+                keyboard = keyboards.main_admin
+            else:
+                keyboard = keyboards.main_user
+            await state.finish()
+
+        await message.reply('ОК', reply_markup=keyboard)
 
 
-@dispatcher.message_handler(lambda message: message.text.lower() == 'уроки')
+@dispatcher.message_handler(lambda message: message.text.lower() == 'уроки', content_types=['text'])
 async def lessons(message: types.Message):
-    await Lessons.lesson.set()
-    await bot.send_message(message.chat.id, 'Выбери урок', reply_markup=keyboards.lessons_main())
+    await Lessons.group.set()
+    await bot.send_message(message.chat.id, 'Выбери группу', reply_markup=keyboards.lessons_groups)
 
 
-@dispatcher.message_handler(state=Lessons.lesson)
+@dispatcher.message_handler(content_types=['text'], state=Lessons.group)
+async def lessons(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        if message.text.lower() == 'основы':
+            group = 'begin'
+        elif message.text.lower() == 'ооп':
+            group = 'OOP'
+        else:
+            await bot.send_message(message.chat.id, 'Такой группы нет, выберите верное название группы')
+            return
+
+        data['group'] = group
+        await Lessons.lesson.set()
+        await bot.send_message(message.chat.id, 'Веберите урок', reply_markup=keyboards.lessons_main(group))
+
+
+@dispatcher.message_handler(content_types=['text'], state=Lessons.lesson)
 async def lessons_chose(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         lesson_id = ''
@@ -153,12 +183,12 @@ async def lessons_chose(message: types.Message, state: FSMContext):
                                                     ' Введите корректный номер или выберите из клавиатуры')
             return
 
-        if int(lesson_id) not in lessons_db.get_ids('lessons'):
+        if int(lesson_id) not in lessons_db.get_ids(data['group']):
             await bot.send_message(message.chat.id, 'Неправильный номер урока.'
                                                     ' Введите корректный номер или выберите из клавиатуры')
             return
 
-        data['lesson'] = lessons_db.get_record_by_id('lessons', lesson_id)
+        data['lesson'] = lessons_db.get_record_by_id(data['group'], lesson_id)
 
         lesson = data['lesson']
 
@@ -185,7 +215,7 @@ async def lessons_chose(message: types.Message, state: FSMContext):
     await Lessons.next()
 
 
-@dispatcher.message_handler(state=Lessons.answer)
+@dispatcher.message_handler(content_types=['text'], state=Lessons.answer)
 async def lesson_handler(message: types.Message, state: FSMContext):
     if message.text.lower() == 'вопросы к преподавателю':
         async with state.proxy() as data:
@@ -199,22 +229,23 @@ async def lesson_handler(message: types.Message, state: FSMContext):
                                                     f'\n{data["lesson"]["test"]}')
 
 
-@dispatcher.message_handler(state=Lessons.message)
+@dispatcher.message_handler(content_types=['text'], state=Lessons.message)
 async def lesson_question(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
-        questions_base.add_message(message.text, data['lesson']['id'], message.chat.id, message.date)
+        questions_base.add_message(message.text, data['group'], data['lesson']['id'], message.chat.id, message.date)
     await bot.send_message(message.chat.id, 'Сообщение отправлено', reply_markup=keyboards.lessons_lesson)
     await Lessons.answer.set()
 
 
 @dispatcher.message_handler(lambda message: True if (message.text.lower() == 'комната админов'
-                                                     and message.chat.id in ADMIN_IDS) else False)
+                                                     and message.chat.id in ADMIN_IDS) else False,
+                            content_types=['text'])
 async def admin(message: types.Message):
     await Message.admin.set()
     await bot.send_message(message.chat.id, 'Добро пожаловать', reply_markup=keyboards.adminsroom_main)
 
 
-@dispatcher.message_handler(state=Message.admin)
+@dispatcher.message_handler(content_types=['text'], state=Message.admin)
 async def admin_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if message.text.lower() == 'сообщения':
@@ -227,7 +258,7 @@ async def admin_handler(message: types.Message, state: FSMContext):
             await bot.send_message(message.chat.id, 'Введите id пользователя', reply_markup=keyboards.cancel)
 
 
-@dispatcher.message_handler(state=Message.question)
+@dispatcher.message_handler(content_types=['text'], state=Message.question)
 async def admin_chose_message(message: types.Message, state: FSMContext):
     message_id = ''
     for char in message.text:
@@ -251,9 +282,9 @@ async def admin_chose_message(message: types.Message, state: FSMContext):
         data['message_id'] = message_id
         question = questions_base.get_message(message_id)
         text = f'id сообщения: {message_id}\n' \
-               f'Урок: {lessons_db.get_record_by_id("lessons", question["lesson_id"])["theme"]} ' \
-               f'({users_db.get_record_by_id("users", question["author_id"])["level"]})\n' \
+               f'Урок: {lessons_db.get_record_by_id("begin", question["lesson_id"])["theme"]}\n' \
                f'Пользователь: {users_db.get_record_by_id("users", question["author_id"])["user_name"]} ' \
+               f'({users_db.get_record_by_id("users", question["author_id"])["level"]}) ' \
                f'({question["author_id"]})\n\n' \
                f'{question["text"]}\n\n' \
                f'{question["date"]}'
@@ -262,7 +293,7 @@ async def admin_chose_message(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Что делать будем?', reply_markup=keyboards.adminsroom_message_main)
 
 
-@dispatcher.message_handler(state=Message.user)
+@dispatcher.message_handler(content_types=['text'], state=Message.user)
 async def admin_chose_user(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if not message.text.isnumeric():
@@ -281,7 +312,7 @@ async def admin_chose_user(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, text, reply_markup=keyboards.adminsroom_user_main)
 
 
-@dispatcher.message_handler(state=Message.answer)
+@dispatcher.message_handler(content_types=['text'], state=Message.answer)
 async def admin_message_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if message.text.lower() == 'ответить':
@@ -295,7 +326,7 @@ async def admin_message_handler(message: types.Message, state: FSMContext):
                                    reply_markup=keyboards.adminsroom_message_chose())
 
 
-@dispatcher.message_handler(state=Message.answer_user)
+@dispatcher.message_handler(content_types=['text'], state=Message.answer_user)
 async def admin_user_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if message.text.lower() == 'повысить':
@@ -319,7 +350,7 @@ async def admin_user_handler(message: types.Message, state: FSMContext):
             await bot.send_message(message.chat.id, 'Введи своё сообщение:', reply_markup=keyboards.cancel)
 
 
-@dispatcher.message_handler(state=Message.message)
+@dispatcher.message_handler(content_types=['text'], state=Message.message)
 async def admin_question_answer(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         message_id = data['message_id']
@@ -328,7 +359,7 @@ async def admin_question_answer(message: types.Message, state: FSMContext):
             await bot.send_message(question['author_id'],
                                    f'Вам пришел ответ на ваш вопрос:\n'
                                    f'Урок №{question["lesson_id"]}: '
-                                   f'{lessons_db.get_record_by_id("lessons", question["lesson_id"])["theme"]}' +
+                                   f'{lessons_db.get_record_by_id(question["group"], question["lesson_id"])["theme"]}' +
                                    f'\n\n {question["text"]}\n\n'
                                    f'Ответ:\n{message.text}')
 
@@ -337,7 +368,7 @@ async def admin_question_answer(message: types.Message, state: FSMContext):
     await Message.question.set()
 
 
-@dispatcher.message_handler(state=Message.message_user)
+@dispatcher.message_handler(content_types=['text'], state=Message.message_user)
 async def admin_user_message(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         user_id = data['user_id']
@@ -347,13 +378,13 @@ async def admin_user_message(message: types.Message, state: FSMContext):
     await Message.answer_user.set()
 
 
-@dispatcher.message_handler(lambda message: True if message.text.lower() == 'помощь' else False)
+@dispatcher.message_handler(lambda message: True if message.text.lower() == 'помощь' else False, content_types=['text'])
 async def bot_help(message: types.Message):
     await Help.main.set()
     await bot.send_message(message.chat.id, 'Выберите вопрос или напишите свой', reply_markup=keyboards.help_main)
 
 
-@dispatcher.message_handler(state=Help.main)
+@dispatcher.message_handler(content_types=['text'], state=Help.main)
 async def help_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if message.text.lower() == 'вопросы':
@@ -372,7 +403,7 @@ async def help_handler(message: types.Message, state: FSMContext):
             await bot.send_message(message.chat.id, text)
 
 
-@dispatcher.message_handler(state=Help.questions)
+@dispatcher.message_handler(content_types=['text'], state=Help.questions)
 async def help_questions_chose(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         if message.text.lower() == 'задать вопрос':
@@ -413,7 +444,7 @@ async def help_questions_chose(message: types.Message, state: FSMContext):
             await bot.send_message(message.chat.id, text, reply_markup=keyboard)
 
 
-@dispatcher.message_handler(state=Help.create_question)
+@dispatcher.message_handler(content_types=['text'], state=Help.create_question)
 async def help_questions_chose(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['theme'] = message.text
@@ -421,7 +452,7 @@ async def help_questions_chose(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Введите текст вопроса', reply_markup=keyboards.cancel)
 
 
-@dispatcher.message_handler(state=Help.create_question_text)
+@dispatcher.message_handler(content_types=['text'], state=Help.create_question_text)
 async def help_questions_chose(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['text'] = message.text
@@ -430,7 +461,7 @@ async def help_questions_chose(message: types.Message, state: FSMContext):
         await bot.send_message(message.chat.id, 'Вопрос создан', reply_markup=keyboards.help_questions())
 
 
-@dispatcher.message_handler(state=Help.create_answer)
+@dispatcher.message_handler(content_types=['text'], state=Help.create_answer)
 async def create_answer(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         text = message.text
@@ -439,10 +470,32 @@ async def create_answer(message: types.Message, state: FSMContext):
         help_questions_base.add_answer(question_id, text, message.chat.id, message.date)
         await bot.send_message(message.chat.id, 'Ответ отправлен', reply_markup=keyboards.help_questions())
         await bot.send_message(author_id,
-                               f'Пользователь {users_db.get_record_by_id("users", author_id)["user_name"]} '
-                               f'({users_db.get_record_by_id("users", author_id)["level"]}) ответил на Ваш вопрос: '
+                               f'Пользователь {users_db.get_record_by_id("users", message.chat.id)["user_name"]} '
+                               f'({users_db.get_record_by_id("users", message.chat.id)["level"]})'
+                               f' ответил на Ваш вопрос: '
                                f'{help_questions_base.get_question(question_id)["theme"]}')
         await Help.questions.set()
+
+
+@dispatcher.message_handler(lambda message: True if message.text.lower() == 'профиль' else False,
+                            content_types=['text'])
+async def profile(message: types.Message):
+    user = users_db.get_record_by_id('users', message.chat.id)
+    text = f'Имя: {user["user_name"]}\n' \
+           f'id: {user["id"]}\n' \
+           f'Уровень: {user["level"]}\n'
+    await bot.send_message(message.chat.id, text, reply_markup=keyboards.profile_main())
+
+
+@dispatcher.message_handler(content_types=['text'], state=Profile.change_name)
+async def create_answer(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        users_db.update_column('users', message.chat.id, 'user_name', message.text)
+        await state.finish()
+        if message.chat.id in ADMIN_IDS:
+            await bot.send_message(message.chat.id, 'Имя изменено', reply_markup=keyboards.main_admin)
+        else:
+            await bot.send_message(message.chat.id, 'Имя изменено', reply_markup=keyboards.main_user)
 
 
 @dispatcher.message_handler(content_types=['text'])
@@ -498,6 +551,13 @@ async def help_answers(call: types.CallbackQuery, callback_data: dict):
         await bot.delete_message(call.from_user.id, call.message.message_id)
         help_questions_base.delete_question(question_id)
         await bot.send_message(call.from_user.id, 'Удалено', reply_markup=keyboards.help_questions())
+
+
+@dispatcher.callback_query_handler(change_name_callback.filter(action='change_name'), state='*')
+async def change_name(call: types.CallbackQuery, callback_data: dict):
+    await call.answer(cache_time=60)
+    await Profile.change_name.set()
+    await bot.send_message(call.from_user.id, 'Введите новое имя', reply_markup=keyboards.cancel)
 
 
 @dispatcher.callback_query_handler(state='*')

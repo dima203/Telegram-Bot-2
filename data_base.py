@@ -32,7 +32,10 @@ class DataBase:
         return user
 
     def update_column(self, table_name: str, record_id: int, column_name: str, new_value):
-        command = f'UPDATE {table_name} SET {column_name} = {new_value} WHERE id = {record_id}'
+        if type(new_value) == str:
+            command = f'''UPDATE {table_name} SET {column_name} = '{new_value}' WHERE id = {record_id}'''
+        else:
+            command = f'''UPDATE {table_name} SET {column_name} = {new_value} WHERE id = {record_id}'''
         self.cursor.execute(command)
         self.connect.commit()
 

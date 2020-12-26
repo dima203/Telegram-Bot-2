@@ -13,13 +13,14 @@ class QuestionBase:
         if message_id in self.base:
             return self.base[message_id]
 
-    def add_message(self, text: str, lesson_id: int, author_id: int, date: datetime.datetime):
+    def add_message(self, text: str, lesson_group: str, lesson_id: int, author_id: int, date: datetime.datetime):
         message_id = self.get_ids()
         if message_id:
             message_id = max(message_id) + 1
         else:
             message_id = 1
-        self.base[message_id] = {'text': text, 'author_id': author_id, 'lesson_id': lesson_id, 'date': date}
+        self.base[message_id] = {'text': text, 'author_id': author_id,
+                                 'lesson_group': lesson_group, 'lesson_id': lesson_id, 'date': date}
         file = open(self.path, 'wb')
         pickle.dump(self.base, file)
         file.close()
