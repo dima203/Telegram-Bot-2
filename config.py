@@ -7,6 +7,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from secret import TOKEN
 
 
+is_test = True
 bot = Bot(TOKEN)
 storage = MemoryStorage()
 dispatcher = Dispatcher(bot, storage=storage)

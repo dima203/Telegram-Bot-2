@@ -1,5 +1,5 @@
 from aiogram import types
-from config import (bot, dispatcher, users_db, lessons_db,
+from config import (bot, is_test, dispatcher, users_db, lessons_db,
                     questions_base, help_questions_base,
                     Lessons, Message, Help, Profile)
 from aiogram.dispatcher import FSMContext
@@ -7,6 +7,11 @@ from aiogram.dispatcher.filters import Text
 from secret import ADMIN_IDS
 import keyboards
 from callback_datas import answers_callback, question_callback, change_name_callback
+
+
+@dispatcher.message_handler(lambda message: True if message.chat.id not in ADMIN_IDS and is_test else False, state='*')
+async def test(message: types.Message):
+    await bot.send_message(message.chat.id, 'Сейчас проводится тест. Бот временно не доступен =(')
 
 
 @dispatcher.message_handler(commands='set_commands', state='*')
@@ -21,7 +26,6 @@ async def cmd_set_commands(message: types.Message):
 @dispatcher.message_handler(commands=['start'], state='*')
 async def start(message: types.Message, state: FSMContext):
     user_id = message.chat.id
-    print(f'User_{user_id} write start')
 
     if user_id in ADMIN_IDS:
         keyboard = keyboards.main_admin
@@ -40,6 +44,8 @@ async def start(message: types.Message, state: FSMContext):
 
             else:
                 users_db.add_record('users', user_id, f'User_{user_id}', 'user', 1)
+
+        print(users_db.get_record_by_id('users', user_id))
 
         await bot.send_message(user_id, 'Стартуем', reply_markup=keyboard)
 
@@ -201,7 +207,14 @@ async def lessons_chose(message: types.Message, state: FSMContext):
                                                 f'Требуется уровень: {lesson["level"]}')
         return
 
-    await bot.send_message(message.chat.id, f'Урок №{lesson_id}:\n\nТема: {lesson["theme"]} \n\n{lesson["text"]}')
+    if 'Практическая' in lesson['theme']:
+        text = lesson['text']
+        text = text.split('\n')
+        user_id = message.chat.id
+        user_var = user_id % len(text)
+        await bot.send_message(message.chat.id, f'Урок №{lesson_id}:\n\nТема: {lesson["theme"]} \n\n{text[user_var]}')
+    else:
+        await bot.send_message(message.chat.id, f'Урок №{lesson_id}:\n\nТема: {lesson["theme"]} \n\n{lesson["text"]}')
     await bot.send_message(message.chat.id, 'https://wombat.org.ua/AByteOfPython/AByteofPythonRussian-2.02.pdf')
 
     paths = lesson["materials"]
@@ -255,7 +268,18 @@ async def admin_handler(message: types.Message, state: FSMContext):
 
         elif message.text.lower() == 'пользователь':
             await Message.user.set()
-            await bot.send_message(message.chat.id, 'Введите id пользователя', reply_markup=keyboards.cancel)
+            await bot.send_message(message.chat.id, 'Введите id пользователя',
+                                   reply_markup=keyboards.adminsroom_user_chose())
+
+        elif message.text.lower() == 'все пользователи':
+            with open('users.txt', 'w') as users_file:
+                users_file.write(f'{"id":^11}|{"username":^20}|{"post":^6}|{"level":^6}\n')
+                users_file.write('-' * (12 + 21 + 7 + 6) + '\n')
+                for user_id in users_db.get_ids('users'):
+                    user = users_db.get_record_by_id('users', user_id)
+                    users_file.write(f'{user["id"]:<11}|{user["user_name"]:^20}|{user["post"]:6}|{user["level"]:<6}\n')
+            with open('users.txt', 'r') as users_file:
+                await bot.send_document(message.chat.id, users_file)
 
 
 @dispatcher.message_handler(content_types=['text'], state=Message.question)
@@ -296,13 +320,23 @@ async def admin_chose_message(message: types.Message, state: FSMContext):
 @dispatcher.message_handler(content_types=['text'], state=Message.user)
 async def admin_chose_user(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
-        if not message.text.isnumeric():
+        user_id = ''
+        for char in message.text:
+            if char.isnumeric():
+                user_id += char
+            else:
+                break
+        if user_id:
+            user_id = int(user_id)
+        else:
             await bot.send_message(message.chat.id, 'Неправильный id пользователя')
             return
-        if int(message.text) not in users_db.get_ids('users'):
+
+        if int(user_id) not in users_db.get_ids('users'):
             await bot.send_message(message.chat.id, 'Неправильный id пользователя')
             return
-        data['user_id'] = int(message.text)
+
+        data['user_id'] = int(user_id)
         user = users_db.get_record_by_id('users', data['user_id'])
         text = f'id: {user["id"]}\n' \
                f'username: {user["user_name"]}\n' \
@@ -504,6 +538,12 @@ async def all_message(message: types.Message):
     text.reverse()
     text = ''.join(text)
     await bot.send_message(message.chat.id, text)
+
+
+@dispatcher.callback_query_handler(lambda call: True if is_test and call.from_user.id not in ADMIN_IDS else False,
+                                   state='*')
+async def test(call: types.CallbackQuery):
+    await bot.send_message(call.from_user.id, 'Сейчас проводится тест. Бот временно не доступен =(')
 
 
 @dispatcher.callback_query_handler(question_callback.filter(action='answers'), state='*')

@@ -33,6 +33,7 @@ lessons_lesson.row('Отмена')
 
 adminsroom_main = ReplyKeyboardMarkup(resize_keyboard=True)
 adminsroom_main.row('Сообщения', 'Пользователь')
+adminsroom_main.row('Все пользователи')
 adminsroom_main.row('Отмена')
 
 
@@ -50,6 +51,17 @@ def adminsroom_message_chose() -> ReplyKeyboardMarkup:
 adminsroom_message_main = ReplyKeyboardMarkup(resize_keyboard=True)
 adminsroom_message_main.row('Ответить', 'Удалить')
 adminsroom_message_main.row('Отмена')
+
+
+def adminsroom_user_chose() -> ReplyKeyboardMarkup:
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for user_id in users_db.get_ids('users'):
+        user = users_db.get_record_by_id('users', user_id)
+        button = f'{user_id}: {user["user_name"]}'
+        keyboard.row(button)
+    keyboard.row('Отмена')
+    return keyboard
+
 
 adminsroom_user_main = ReplyKeyboardMarkup(resize_keyboard=True)
 adminsroom_user_main.row('Повысить', 'Понизить')
@@ -75,9 +87,10 @@ def help_questions() -> ReplyKeyboardMarkup:
 
 def help_question_main_user(question_id: int) -> InlineKeyboardMarkup:
     keyboard = InlineKeyboardMarkup(resize_keyboard=True)
-    button_answers = InlineKeyboardButton('Ответы', callback_data=question_callback.new(
-        action='answers', question_id=question_id
-    ))
+    button_answers = InlineKeyboardButton(f'Ответы ({len(help_questions_base.get_answers_ids())})',
+                                          callback_data=question_callback.new(
+                                              action='answers', question_id=question_id
+                                          ))
     button_answer_to_question = InlineKeyboardButton('Ответить', callback_data=question_callback.new(
         action='answer_to_question', question_id=question_id
     ))
@@ -88,9 +101,10 @@ def help_question_main_user(question_id: int) -> InlineKeyboardMarkup:
 
 def help_question_main_admin(question_id: int) -> InlineKeyboardMarkup:
     keyboard = InlineKeyboardMarkup(resize_keyboard=True)
-    button_answers = InlineKeyboardButton('Ответы', callback_data=question_callback.new(
-        action='answers', question_id=question_id
-    ))
+    button_answers = InlineKeyboardButton(f'Ответы ({len(help_questions_base.get_answers_ids(question_id))})',
+                                          callback_data=question_callback.new(
+                                              action='answers', question_id=question_id
+                                          ))
     button_delete = InlineKeyboardButton('Удалить', callback_data=question_callback.new(
         action='delete', question_id=question_id
     ))
